@@ -3,6 +3,7 @@ package com.zenith.network.client.handler.incoming;
 import com.zenith.Proxy;
 import com.zenith.cache.CacheResetType;
 import com.zenith.event.client.ClientOnlineEvent;
+import com.zenith.event.client.ClientPlayReadyEvent;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.PacketHandler;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundLoginPacket;
@@ -72,6 +73,7 @@ public class LoginHandler implements PacketHandler<ClientboundLoginPacket, Clien
             CACHE.getChatCache().setEnforcesSecureChat(packet.isEnforcesSecureChat());
         }
 
+        publishPlayReady();
         if (shouldPublishOnlineAtLogin(Proxy.getInstance().isOn2b2t(), Proxy.getInstance().isOn3c3u())) {
             if (!session.isOnline()) {
                 session.setOnline(true);
@@ -83,5 +85,9 @@ public class LoginHandler implements PacketHandler<ClientboundLoginPacket, Clien
 
     static boolean shouldPublishOnlineAtLogin(final boolean isOn2b2t, final boolean isOn3c3u) {
         return !isOn2b2t && !isOn3c3u;
+    }
+
+    static void publishPlayReady() {
+        EVENT_BUS.post(ClientPlayReadyEvent.INSTANCE);
     }
 }
