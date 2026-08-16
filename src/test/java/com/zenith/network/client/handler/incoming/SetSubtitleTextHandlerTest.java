@@ -7,9 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SetSubtitleTextHandlerTest {
     @Test
-    void legacySubtitleQueueParserRunsOnlyFor2b2tQueue() {
-        assertTrue(SetSubtitleTextHandler.shouldParseQueuePosition(true, true));
-        assertFalse(SetSubtitleTextHandler.shouldParseQueuePosition(false, true));
-        assertFalse(SetSubtitleTextHandler.shouldParseQueuePosition(true, false));
+    void subtitleQueueParserRoutes2b2tAnd3c3uIndependently() {
+        assertTrue(SetSubtitleTextHandler.shouldParseQueuePosition(true, false, true));
+        assertFalse(SetSubtitleTextHandler.shouldParseQueuePosition(true, false, false));
+        assertTrue(SetSubtitleTextHandler.shouldParseQueuePosition(false, true, false));
+        assertFalse(SetSubtitleTextHandler.shouldParseQueuePosition(false, false, true));
     }
 }

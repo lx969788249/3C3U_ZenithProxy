@@ -16,7 +16,8 @@ public final class ThreeCThreeUQueueTracker {
     public static final Duration FRESHNESS_WINDOW = Duration.ofMinutes(2);
     private static final int MAX_QUEUE_VALUE = 1_000_000;
     private static final int MAX_SOURCE_UTF8_BYTES = 512;
-    private static final Pattern PERSONAL_POSITION = Pattern.compile("(?:正在排队\\s{0,8})?位置\\s{0,8}[：:]\\s{0,8}([1-9][0-9]{0,6})(?![0-9A-Za-z])");
+    private static final Pattern CHINESE_PERSONAL_POSITION = Pattern.compile("(?:正在排队\\s{0,8})?位置\\s{0,8}[：:]\\s{0,8}([1-9][0-9]{0,6})(?![0-9A-Za-z])");
+    private static final Pattern ENGLISH_PERSONAL_POSITION = Pattern.compile("(?i)\\bposition\\s{1,8}in\\s{1,8}queue\\s{0,8}:\\s{0,8}([1-9][0-9]{0,6})(?![0-9A-Za-z])");
     private static final Pattern QUEUE_TOTAL = Pattern.compile("(?i)\\b([1-9][0-9]{0,6})\\s+in\\s+queue\\b");
     private static final Pattern QUEUE_MARKER = Pattern.compile("(?iU)\\bin\\s+queue\\b");
     private static final Pattern THREE_C_THREE_U_HOST = Pattern.compile("(?i)(?<![A-Za-z0-9.-])(?:[A-Za-z0-9-]+\\.)*3c3u\\.org(?![A-Za-z0-9.-])");
@@ -163,7 +164,10 @@ public final class ThreeCThreeUQueueTracker {
     }
 
     public static Optional<Integer> parsePersonalPosition(final String text) {
-        return extractSingleBoundedValue(PERSONAL_POSITION, text);
+        var chinesePosition = extractSingleBoundedValue(CHINESE_PERSONAL_POSITION, text);
+        var englishPosition = extractSingleBoundedValue(ENGLISH_PERSONAL_POSITION, text);
+        if (chinesePosition.isPresent() && englishPosition.isPresent()) return Optional.empty();
+        return chinesePosition.isPresent() ? chinesePosition : englishPosition;
     }
 
     public static Optional<Integer> parseQueueTotal(final String footer) {

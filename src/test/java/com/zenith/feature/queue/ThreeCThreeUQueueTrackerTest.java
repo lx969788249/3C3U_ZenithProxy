@@ -22,6 +22,11 @@ class ThreeCThreeUQueueTrackerTest {
     }
 
     @Test
+    void parsesObserved3c3uSubtitlePersonalPosition() {
+        assertEquals(165, ThreeCThreeUQueueTracker.parsePersonalPosition("555 Playing  |  Position in queue: 165").orElseThrow());
+    }
+
+    @Test
     void rejectsMalformedConflictingAndOutOfRangePersonalPositions() {
         assertTrue(ThreeCThreeUQueueTracker.parsePersonalPosition("正在排队 位置：0").isEmpty());
         assertTrue(ThreeCThreeUQueueTracker.parsePersonalPosition("正在排队 位置：0172").isEmpty());

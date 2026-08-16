@@ -87,7 +87,7 @@ https://wiki.2b2t.vc/Setup/
 
 ## 3c3u.org queue support
 
-When the destination is `3c3u.org`, ZenithProxy tracks queue state from server packets only. The personal queue position is read only from an actionbar message such as `正在排队  位置：172`; the queue total is read only from a tab-list footer such as `142 in queue 3c3u.org`. These are separate values, and malformed or stale values are shown as unknown rather than reused indefinitely.
+When the destination is `3c3u.org`, ZenithProxy tracks queue state from server packets only. The personal queue position is read from structured queue HUD packets such as the observed subtitle `555 Playing | Position in queue: 165` (with legacy actionbar text such as `正在排队  位置：172` also supported); the queue total is read only from a tab-list footer such as `142 in queue 3c3u.org`. These are separate values, and malformed or stale values are shown as unknown rather than reused indefinitely.
 
 While 3c3u state is connecting or queued, visual-range enter/leave/logout alerts (including their replay and whisper effects) and Discord relay player connection messages are suppressed. They resume once a non-empty, non-queue footer confirms the main server.
 
