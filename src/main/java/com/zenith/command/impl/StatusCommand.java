@@ -137,15 +137,27 @@ public class StatusCommand extends Command {
             }))
             .executes(c -> {
                 final var embed = c.getSource().getEmbed();
+                final var proxy = Proxy.getInstance();
+                final var statusNow = Instant.now();
+                final var threeCThreeUSnapshot = proxy.isOn3c3u()
+                    ? proxy.getThreeCThreeUQueueTracker().snapshot(statusNow)
+                    : null;
+                final var statusText = threeCThreeUSnapshot != null
+                    ? proxy.getThreeCThreeUQueueTracker().formatStatus(threeCThreeUSnapshot, statusNow)
+                    : getStatus();
+                final boolean connected = proxy.isConnected();
+                final boolean inQueue = threeCThreeUSnapshot != null
+                    ? threeCThreeUSnapshot.phase() == com.zenith.feature.queue.ThreeCThreeUQueueTracker.Phase.QUEUE
+                    : proxy.isInQueue();
                 embed
                     .title("ZenithProxy " + VERSION + " - " + CONFIG.authentication.username)
-                    .color(Proxy.getInstance().isConnected()
-                               ? (Proxy.getInstance().isInQueue()
+                    .color(connected
+                               ? (inQueue
                         ? CONFIG.theme.inQueue.discord()
                         : CONFIG.theme.success.discord())
                                : CONFIG.theme.error.discord())
                     .thumbnail(getThumbnailImage())
-                    .addField("Status", getStatus(), true)
+                    .addField("Status", statusText, true)
                     .addField("Uptime", MathHelper.formatDuration(Duration.ofMillis(System.currentTimeMillis() - Proxy.getInstance().getStartTime())))
                     .addField("Online Duration", getOnlineTime(), true)
                     // end row 1
@@ -153,20 +165,20 @@ public class StatusCommand extends Command {
                     .addField("Dimension",
                               (nonNull(CACHE.getChunkCache().getCurrentDimension()) ? CACHE.getChunkCache().getCurrentDimension().name(): "None"),
                               true)
-                    .addField("Ping", (Proxy.getInstance().isConnected() ? Proxy.getInstance().getClient().getPing() : 0) + "ms", true)
+                    .addField("Ping", (connected ? proxy.getClient().getPing() : 0) + "ms", true)
                     // end row 2
                     .addField("Proxy IP", CONFIG.server.getProxyAddress(), true)
                     .addField("Server", CONFIG.client.server.address + ':' + CONFIG.client.server.port, true)
                     .addField("Connected Player", getCurrentClientUserName(), true);
                     // end row 3
-                if (Proxy.getInstance().isOn2b2t()) {
+                if (proxy.isOn2b2t()) {
                     embed.addField("Priority Queue", (CONFIG.authentication.prio ? "yes" : "no"), true);
                 }
                 if (!getSpectatorUserNames().isEmpty())
                     embed.addField("Online Spectators", String.join(", ", getSpectatorUserNames()), true);
-                if (Proxy.getInstance().isOn3c3u()) {
-                    embed.addField("3C3U Queue", Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now()), true);
-                } else if (CONFIG.server.queueStatusRefreshWhileNotOn2b2t || Proxy.getInstance().isOn2b2t()) {
+                if (threeCThreeUSnapshot != null) {
+                    embed.addField("3C3U Queue", statusText, true);
+                } else if (CONFIG.server.queueStatusRefreshWhileNotOn2b2t || proxy.isOn2b2t()) {
                     embed
                         .addField("2b2t Queue", getQueueStatus(), true);
                 }

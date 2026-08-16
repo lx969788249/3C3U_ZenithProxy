@@ -72,12 +72,16 @@ public class LoginHandler implements PacketHandler<ClientboundLoginPacket, Clien
             CACHE.getChatCache().setEnforcesSecureChat(packet.isEnforcesSecureChat());
         }
 
-        if (!Proxy.getInstance().isOn2b2t()) {
+        if (shouldPublishOnlineAtLogin(Proxy.getInstance().isOn2b2t(), Proxy.getInstance().isOn3c3u())) {
             if (!session.isOnline()) {
                 session.setOnline(true);
                 EVENT_BUS.post(new ClientOnlineEvent());
             }
         }
         return packet;
+    }
+
+    static boolean shouldPublishOnlineAtLogin(final boolean isOn2b2t, final boolean isOn3c3u) {
+        return !isOn2b2t && !isOn3c3u;
     }
 }

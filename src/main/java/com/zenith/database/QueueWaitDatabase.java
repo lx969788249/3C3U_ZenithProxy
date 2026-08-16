@@ -1,5 +1,6 @@
 package com.zenith.database;
 
+import com.zenith.Proxy;
 import com.zenith.event.client.ClientDisconnectEvent;
 import com.zenith.event.queue.QueueCompleteEvent;
 import com.zenith.event.queue.QueuePositionUpdateEvent;
@@ -43,10 +44,12 @@ public class QueueWaitDatabase extends Database {
     }
 
     public void handleServerRestart(final ServerRestartingEvent event) {
+        if (!shouldProcessQueueEvent(Proxy.getInstance().isOn2b2t())) return;
         lastServerRestart = Instant.now();
     }
 
     public void handleStartQueue(final QueueStartEvent event) {
+        if (!shouldProcessQueueEvent(Proxy.getInstance().isOn2b2t())) return;
         if (event.wasOnline()) {
             didQueueSkip.set(true);
         }
@@ -56,6 +59,7 @@ public class QueueWaitDatabase extends Database {
     }
 
     private void handleQueueSkip(QueueSkipEvent event) {
+        if (!shouldProcessQueueEvent(Proxy.getInstance().isOn2b2t())) return;
         didQueueSkip.set(true);
     }
 
@@ -64,6 +68,7 @@ public class QueueWaitDatabase extends Database {
     }
 
     public void handleQueuePosition(final QueuePositionUpdateEvent event) {
+        if (!shouldProcessQueueEvent(Proxy.getInstance().isOn2b2t())) return;
         // record only first position update
         if (shouldUpdateQueueLen.compareAndSet(true, false)) {
             initialQueueLen = event.position();
@@ -72,6 +77,7 @@ public class QueueWaitDatabase extends Database {
     }
 
     public void handleQueueComplete(final QueueCompleteEvent event) {
+        if (!shouldProcessQueueEvent(Proxy.getInstance().isOn2b2t())) return;
         if (didQueueSkip.compareAndSet(true, false)) {
             DATABASE_LOG.info("Skipping queue wait DB write due to queue skip event");
             return;
@@ -107,5 +113,9 @@ public class QueueWaitDatabase extends Database {
                 .bind("end_queue_time", endQueueTime.atOffset(ZoneOffset.UTC))
                 .execute();
         }
+    }
+
+    static boolean shouldProcessQueueEvent(final boolean isOn2b2t) {
+        return isOn2b2t;
     }
 }
