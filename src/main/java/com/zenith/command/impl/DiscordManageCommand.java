@@ -2,6 +2,7 @@ package com.zenith.command.impl;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.zenith.command.api.*;
+import com.zenith.discord.DiscordBot;
 import com.zenith.discord.Embed;
 import com.zenith.util.MentionUtil;
 import net.dv8tion.jda.api.JDABuilder;
@@ -265,8 +266,7 @@ public class DiscordManageCommand extends Command {
 
     private LoginResult validateToken(final String token) {
         try {
-            JDABuilder
-                .createLight(token)
+            DiscordBot.applyConfiguredNetworkProxy(JDABuilder.createLight(token))
                 .setEnabledIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES)
                 .build()
                 .awaitReady()

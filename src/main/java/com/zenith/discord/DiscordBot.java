@@ -144,13 +144,13 @@ public class DiscordBot {
             throw new RuntimeException("Invalid account owner role ID set: " + CONFIG.discord.accountOwnerRoleId);
         }
 
-        JDABuilder builder = JDABuilder.createLight(
+        JDABuilder builder = applyConfiguredNetworkProxy(JDABuilder.createLight(
                 CONFIG.discord.token,
                 asList(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MESSAGES))
             .setActivity(Activity.customStatus("Disconnected"))
             .setRestConfig(new RestConfig().setMaxQueuedRequestsPerBucket(CONFIG.discord.maxQueuedRequestsPerBucket))
             .setStatus(OnlineStatus.DO_NOT_DISTURB)
-            .addEventListeners(new SimpleEventBusListener(jdaEventBus));
+            .addEventListeners(new SimpleEventBusListener(jdaEventBus)));
         this.jda = builder.build();
         try {
             jda.awaitReady();
@@ -170,6 +170,11 @@ public class DiscordBot {
                 jda.getChannelById(TextChannel.class, CONFIG.discord.chatRelay.channelId),
                 "Discord relay channel not found with ID: " + CONFIG.discord.chatRelay.channelId);
         }
+    }
+
+    public static JDABuilder applyConfiguredNetworkProxy(final JDABuilder builder) {
+        DiscordProxy.fromSystemProperties().ifPresent(proxy -> proxy.apply(builder));
+        return builder;
     }
 
     private void onMessageReceived(MessageReceivedEvent event) {
