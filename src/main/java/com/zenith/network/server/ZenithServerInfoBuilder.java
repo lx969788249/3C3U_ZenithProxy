@@ -23,6 +23,7 @@ import org.geysermc.mcprotocollib.protocol.data.status.VersionInfo;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -155,6 +156,15 @@ public class ZenithServerInfoBuilder {
     }
 
     public Component buildDefaultMotd() {
+        if (Proxy.getInstance().isOn3c3u()) {
+            return ComponentSerializer.minimessage(
+                motdMM,
+                Placeholder.unparsed("username", CONFIG.authentication.username),
+                Placeholder.parsed("motd_body", Proxy.getInstance().isConnected() ? motdConnectedBody : motdDisconnectedBody),
+                Placeholder.unparsed("motd_status", Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now())),
+                Placeholder.unparsed("online_time", Proxy.getInstance().getOnlineTimeString())
+            );
+        }
         var prio = Proxy.getInstance().isPrio();
         var qPos = Proxy.getInstance().getQueuePosition();
         var qUndefined = qPos == Integer.MAX_VALUE;

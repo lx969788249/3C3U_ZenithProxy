@@ -3,8 +3,10 @@ package com.zenith.network.client.handler.incoming.spawn;
 import com.zenith.cache.data.entity.Entity;
 import com.zenith.cache.data.entity.EntityPlayer;
 import com.zenith.cache.data.entity.EntityStandard;
+import com.zenith.Proxy;
 import com.zenith.event.module.ServerPlayerInVisualRangeEvent;
 import com.zenith.feature.whitelist.PlayerListsManager;
+import com.zenith.feature.queue.PlayerActivityEventGate;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.ClientEventLoopPacketHandler;
 import org.geysermc.mcprotocollib.protocol.data.game.PlayerListEntry;
@@ -66,7 +68,11 @@ public class AddEntityHandler implements ClientEventLoopPacketHandler<Clientboun
                            PlayerListsManager.getProfileFromUUID(packet.getUuid())
                                .map(entry -> new PlayerListEntry(entry.name(), entry.uuid()))
                                .orElseGet(() -> new PlayerListEntry("", packet.getUuid())));
-        EVENT_BUS.postAsync(new ServerPlayerInVisualRangeEvent(playerEntry, entity));
+        // Suppress at emission time so a delayed async consumer cannot leak queue activity after MAIN_SERVER.
+        PlayerActivityEventGate.emitIfAllowed(
+            Proxy.getInstance().shouldSuppressPlayerActivityAlerts(),
+            new ServerPlayerInVisualRangeEvent(playerEntry, entity),
+            EVENT_BUS::postAsync);
         return true;
     }
 }

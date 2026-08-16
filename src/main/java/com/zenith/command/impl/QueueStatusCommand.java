@@ -12,6 +12,7 @@ import com.zenith.feature.queue.QueueStatus;
 import com.zenith.util.math.MathHelper;
 
 import java.time.Duration;
+import java.time.Instant;
 
 import static com.mojang.brigadier.arguments.IntegerArgumentType.getInteger;
 import static com.mojang.brigadier.arguments.IntegerArgumentType.integer;
@@ -26,7 +27,7 @@ public class QueueStatusCommand extends Command {
         return CommandUsage.builder()
             .name("queueStatus")
             .category(CommandCategory.INFO)
-            .description("Gets the current 2b2t queue length and wait ETA")
+            .description("Gets 2b2t queue estimates or packet-driven 3c3u queue status")
             .usageLines(
                 "",
                 "refresh",
@@ -44,6 +45,14 @@ public class QueueStatusCommand extends Command {
     @Override
     public LiteralArgumentBuilder<CommandContext> register() {
         return command("queueStatus").executes(c -> {
+                if (Proxy.getInstance().isOn3c3u()) {
+                    final var tracker = Proxy.getInstance().getThreeCThreeUQueueTracker();
+                    c.getSource().getEmbed()
+                        .title("3C3U Queue Status")
+                        .description(tracker.formatStatus(Instant.now()))
+                        .primaryColor();
+                    return;
+                }
                 final boolean inQueue = Proxy.getInstance().isInQueue();
                 final QueueStatus queueStatus = Queue.getQueueStatus();
                 c.getSource().getEmbed()
@@ -60,6 +69,13 @@ public class QueueStatusCommand extends Command {
                 }})
             .then(literal("refresh")
                 .executes(c -> {
+                    if (Proxy.getInstance().isOn3c3u()) {
+                        c.getSource().getEmbed()
+                            .title("3C3U Queue Status")
+                            .description("3c3u queue data is packet-driven and does not use 2b2t refresh APIs.")
+                            .primaryColor();
+                        return;
+                    }
                     try {
                         Queue.updateQueueStatusNow();
                         Queue.updateQueueEtaEquation();

@@ -9,6 +9,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundTabListPacket;
 
+import java.time.Instant;
+
 import static com.zenith.Globals.*;
 
 public class ServerTablistDataOutgoingHandler implements PacketHandler<ClientboundTabListPacket, ServerSession> {
@@ -42,6 +44,15 @@ public class ServerTablistDataOutgoingHandler implements PacketHandler<Clientbou
                 Placeholder.unparsed("online_time", Proxy.getInstance().getOnlineTimeString()),
                 Placeholder.unparsed("tps", TPS.getTPS())
             );
+            if (Proxy.getInstance().isOn3c3u()) {
+                var tracker = Proxy.getInstance().getThreeCThreeUQueueTracker();
+                var now = Instant.now();
+                var queueSnapshot = tracker.snapshot(now);
+                if (queueSnapshot.phase() == com.zenith.feature.queue.ThreeCThreeUQueueTracker.Phase.CONNECTING
+                    || queueSnapshot.phase() == com.zenith.feature.queue.ThreeCThreeUQueueTracker.Phase.QUEUE) {
+                    injectedFooter = injectedFooter.append(Component.text("\n" + tracker.formatTabListSummary(queueSnapshot, now)));
+                }
+            }
             var event = new CustomTablistFooterBuildEvent(injectedFooter);
             EVENT_BUS.post(event);
             return footer.append(event.getFooterComponent());

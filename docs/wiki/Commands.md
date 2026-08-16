@@ -1090,7 +1090,7 @@ Gets the playtime of a player on 2b2t using https://api.2b2t.vc/
 
 ### queueStatus
 
-Gets the current 2b2t queue length and wait ETA
+Gets 2b2t queue estimates or packet-driven 3c3u queue status
 
 **Aliases:** `queue` / `q`
 

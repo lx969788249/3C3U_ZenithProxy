@@ -247,8 +247,11 @@ public class ChatRelayEventListener {
 
     void handleServerPlayerConnectedEvent(ServerPlayerConnectedEvent event) {
         if (!CONFIG.discord.chatRelay.enable || !CONFIG.discord.chatRelay.connectionMessages || CONFIG.discord.chatRelay.channelId.isEmpty()) return;
-        if (!Proxy.getInstance().isOnlineForAtLeastDuration(Duration.ofSeconds(3))) return;
-        if (CONFIG.discord.chatRelay.ignoreQueue && Proxy.getInstance().isInQueue()) return;
+        // 3c3u queue activity is filtered at packet emission. Never re-read its mutable phase here.
+        if (!Proxy.getInstance().isOn3c3u()) {
+            if (!Proxy.getInstance().isOnlineForAtLeastDuration(Duration.ofSeconds(3))) return;
+            if (CONFIG.discord.chatRelay.ignoreQueue && Proxy.getInstance().isInQueue()) return;
+        }
         sendRelayEmbedMessage(Embed.builder()
             .description("**" + escape(event.playerEntry().getName()) + "** connected")
             .successColor()
@@ -257,8 +260,11 @@ public class ChatRelayEventListener {
 
     void handleServerPlayerDisconnectedEvent(ServerPlayerDisconnectedEvent event) {
         if (!CONFIG.discord.chatRelay.enable || !CONFIG.discord.chatRelay.connectionMessages || CONFIG.discord.chatRelay.channelId.isEmpty()) return;
-        if (!Proxy.getInstance().isOnlineForAtLeastDuration(Duration.ofSeconds(3))) return;
-        if (CONFIG.discord.chatRelay.ignoreQueue && Proxy.getInstance().isInQueue()) return;
+        // Preserve legacy 2b filtering; 3c3u already froze delivery at packet emission.
+        if (!Proxy.getInstance().isOn3c3u()) {
+            if (!Proxy.getInstance().isOnlineForAtLeastDuration(Duration.ofSeconds(3))) return;
+            if (CONFIG.discord.chatRelay.ignoreQueue && Proxy.getInstance().isInQueue()) return;
+        }
         sendRelayEmbedMessage(Embed.builder()
             .description("**" + escape(event.playerEntry().getName()) + "** disconnected")
             .errorColor()

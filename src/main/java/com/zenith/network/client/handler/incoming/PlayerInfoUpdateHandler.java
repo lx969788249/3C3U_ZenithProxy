@@ -1,6 +1,8 @@
 package com.zenith.network.client.handler.incoming;
 
+import com.zenith.Proxy;
 import com.zenith.event.server.ServerPlayerConnectedEvent;
+import com.zenith.feature.queue.PlayerActivityEventGate;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.ClientEventLoopPacketHandler;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundPlayerInfoUpdatePacket;
@@ -17,7 +19,11 @@ public class PlayerInfoUpdateHandler implements ClientEventLoopPacketHandler<Cli
             var entry = packet.getEntries()[i];
             if (packet.getActions().contains(ADD_PLAYER)) {
                 CACHE.getTabListCache().add(entry);
-                EVENT_BUS.postAsync(new ServerPlayerConnectedEvent(entry));
+                // Capture queue-phase suppression before asynchronous consumers can observe MAIN_SERVER.
+                PlayerActivityEventGate.emitIfAllowed(
+                    Proxy.getInstance().shouldSuppressPlayerActivityAlerts(),
+                    new ServerPlayerConnectedEvent(entry),
+                    EVENT_BUS::postAsync);
             }
             // skip extra ops if we're only adding a player
             if (packet.getActions().size() <= 1 && packet.getActions().contains(ADD_PLAYER)) continue;

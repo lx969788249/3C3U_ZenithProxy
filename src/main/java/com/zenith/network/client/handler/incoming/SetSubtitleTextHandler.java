@@ -15,10 +15,14 @@ import static com.zenith.Globals.EVENT_BUS;
 public class SetSubtitleTextHandler implements ClientEventLoopPacketHandler<ClientboundSetSubtitleTextPacket, ClientSession> {
     @Override
     public boolean applyAsync(final ClientboundSetSubtitleTextPacket packet, final ClientSession session) {
-        if (Proxy.getInstance().isInQueue()) {
+        if (shouldParseQueuePosition(Proxy.getInstance().isOn2b2t(), Proxy.getInstance().isInQueue())) {
             parse2bQueuePos(packet, session);
         }
         return true;
+    }
+
+    static boolean shouldParseQueuePosition(final boolean isOn2b2t, final boolean isInQueue) {
+        return isOn2b2t && isInQueue;
     }
 
     private void parse2bQueuePos(ClientboundSetSubtitleTextPacket serverTitlePacket, final ClientSession session) {

@@ -32,6 +32,7 @@ import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
@@ -275,6 +276,20 @@ public class NotificationEventListener {
     }
 
     public void handleStartQueueEvent(QueueStartEvent event) {
+        if (Proxy.getInstance().isOn3c3u()) {
+            var tracker = Proxy.getInstance().getThreeCThreeUQueueTracker();
+            var embed = Embed.builder()
+                .title("Started 3C3U Queue")
+                .inQueueColor()
+                .description(tracker.formatStatus(Instant.now()));
+            if (CONFIG.discord.mentionRoleOnStartQueue) {
+                sendEmbedMessage(notificationMention(), embed);
+            } else {
+                sendEmbedMessage(embed);
+            }
+            updatePresence();
+            return;
+        }
         var embed = Embed.builder()
             .title("Started Queuing")
             .inQueueColor()
@@ -603,6 +618,13 @@ public class NotificationEventListener {
     }
 
     public void handleActiveHoursConnectEvent(ActiveHoursConnectEvent event) {
+        if (Proxy.getInstance().isOn3c3u()) {
+            sendEmbedMessage(Embed.builder()
+                .title("Active Hours Connect Triggered")
+                .description(Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now()))
+                .primaryColor());
+            return;
+        }
         int queueLength;
         if (Proxy.getInstance().isPrio()) {
             queueLength = Queue.getQueueStatus().prio();

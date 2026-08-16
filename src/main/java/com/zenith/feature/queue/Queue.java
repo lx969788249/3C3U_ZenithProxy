@@ -45,6 +45,7 @@ public class Queue {
     }
 
     public static QueueStatus getQueueStatus() {
+        if (Proxy.getInstance().isOn3c3u()) return queueStatus;
         if (lastUpdate == Instant.EPOCH) {
             updateQueueStatusNow();
         }
@@ -64,6 +65,7 @@ public class Queue {
 
     @Locked
     public static void updateQueueStatusNow() {
+        if (Proxy.getInstance().isOn3c3u()) return;
         if (!CONFIG.server.queueStatusRefreshWhileNotOn2b2t && !Proxy.getInstance().isOn2b2t()) return;
         if (lastUpdate.isAfter(Instant.now().minus(Duration.ofSeconds(5)))) return; // avoid getting rate limited by tcpshield
         lastUpdate = Instant.now();
@@ -76,6 +78,7 @@ public class Queue {
 
     // returns seconds until estimated queue completion time
     public static long getQueueWait(final Integer queuePos) {
+        if (Proxy.getInstance().isOn3c3u()) return 0L;
         if (lastQueueEtaEquationUpdate == Instant.EPOCH) {
             Thread.ofVirtual().start(Queue::updateQueueEtaEquation);
         }
@@ -142,6 +145,7 @@ public class Queue {
 
     @Locked
     public static void updateQueueEtaEquation() {
+        if (Proxy.getInstance().isOn3c3u()) return;
         if (!CONFIG.server.queueStatusRefreshWhileNotOn2b2t && !Proxy.getInstance().isOn2b2t()) return;
         if (!CONFIG.server.dynamicQueueEtaEquation) return;
         if (lastQueueEtaEquationUpdate.isAfter(Instant.now().minus(Duration.ofHours(1)))) return;
@@ -160,6 +164,9 @@ public class Queue {
     }
 
     public static String queuePositionStr() {
+        if (Proxy.getInstance().isOn3c3u()) {
+            return Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now());
+        }
         if (Proxy.getInstance().isPrio()) {
             return Proxy.getInstance().getQueuePosition() + " / " + getQueueStatus().prio() + " - ETA: " + getQueueEta(Proxy.getInstance().getQueuePosition());
         } else {

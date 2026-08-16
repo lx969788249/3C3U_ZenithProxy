@@ -68,6 +68,9 @@ public class StatusCommand extends Command {
 
     private String getStatus() {
         if (Proxy.getInstance().isConnected()) {
+            if (Proxy.getInstance().isOn3c3u()) {
+                return Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now());
+            }
             if (Proxy.getInstance().isInQueue()) {
                 if (Proxy.getInstance().isPrio()) {
                     return "In Prio Queue [" + Proxy.getInstance().getQueuePosition() + " / " + Queue.getQueueStatus().prio() + "]\n"
@@ -161,7 +164,9 @@ public class StatusCommand extends Command {
                 }
                 if (!getSpectatorUserNames().isEmpty())
                     embed.addField("Online Spectators", String.join(", ", getSpectatorUserNames()), true);
-                if (CONFIG.server.queueStatusRefreshWhileNotOn2b2t || Proxy.getInstance().isOn2b2t()) {
+                if (Proxy.getInstance().isOn3c3u()) {
+                    embed.addField("3C3U Queue", Proxy.getInstance().getThreeCThreeUQueueTracker().formatStatus(Instant.now()), true);
+                } else if (CONFIG.server.queueStatusRefreshWhileNotOn2b2t || Proxy.getInstance().isOn2b2t()) {
                     embed
                         .addField("2b2t Queue", getQueueStatus(), true);
                 }

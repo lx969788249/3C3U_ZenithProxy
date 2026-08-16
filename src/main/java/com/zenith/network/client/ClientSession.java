@@ -4,6 +4,7 @@ import com.viaversion.viaversion.api.protocol.version.ProtocolVersion;
 import com.zenith.Proxy;
 import com.zenith.event.client.ClientConnectEvent;
 import com.zenith.event.client.ClientDisconnectEvent;
+import com.zenith.feature.queue.ThreeCThreeUQueueEventDispatcher;
 import com.zenith.mc.biome.BiomeRegistry;
 import com.zenith.mc.block.BlockRegistry;
 import com.zenith.network.ClientKeepAliveTask;
@@ -60,6 +61,9 @@ public class ClientSession extends TcpClientSession {
     private final GameProfile profile;
     private final String accessToken;
     private int protocolVersionId;
+    // Ownership token for 3c3u queue observations scheduled by this client session.
+    private long threeCThreeUQueueGeneration = -1L;
+    private final ThreeCThreeUQueueEventDispatcher threeCThreeUQueueEventDispatcher;
     private static final ClientTickManager clientTickManager = new ClientTickManager();
     private PalettedWorldState palettedWorldState = createPalettedWorldState(1);
 
@@ -67,10 +71,19 @@ public class ClientSession extends TcpClientSession {
         super(host, port, bindAddress, 0, protocol, proxyInfo, tcpManager);
         profile = protocol.getProfile();
         accessToken = protocol.getAccessToken();
+        threeCThreeUQueueEventDispatcher = new ThreeCThreeUQueueEventDispatcher(
+            EXECUTOR,
+            Proxy.getInstance().getThreeCThreeUQueueTracker(),
+            EVENT_BUS::post);
     }
 
     public ClientSession(String host, int port, String bindAddress, MinecraftProtocol protocol, TcpConnectionManager tcpManager) {
         this(host, port, bindAddress, protocol, null, tcpManager);
+    }
+
+    /** Posts a 3c3u queue lifecycle event in order and only while this session owns the active generation. */
+    public void postThreeCThreeUQueueEvent(final Object event) {
+        threeCThreeUQueueEventDispatcher.post(threeCThreeUQueueGeneration, event);
     }
 
     public void setOnline(final boolean online) {
@@ -179,6 +192,9 @@ public class ClientSession extends TcpClientSession {
     public void callConnected() {
         CLIENT_LOG.info("Connected to {}!", getRemoteAddress());
         this.setDisconnected(false);
+        if (Proxy.getInstance().isOn3c3u()) {
+            threeCThreeUQueueGeneration = Proxy.getInstance().getThreeCThreeUQueueTracker().beginConnect();
+        }
         switchInboundState(ProtocolState.LOGIN);
         send(new ClientIntentionPacket(getPacketProtocol().getCodec().getProtocolVersion(), getHost(), getPort(), HandshakeIntent.LOGIN));
         switchOutboundState(ProtocolState.LOGIN);
@@ -223,6 +239,11 @@ public class ClientSession extends TcpClientSession {
     @Override
     public void callDisconnected(Component reason, Throwable cause) {
         setDisconnected(true);
+        final boolean wasInQueue = Proxy.getInstance().isInQueue();
+        final int queuePosition = Proxy.getInstance().getQueuePosition();
+        if (Proxy.getInstance().isOn3c3u()) {
+            Proxy.getInstance().getThreeCThreeUQueueTracker().resetDisconnected(threeCThreeUQueueGeneration);
+        }
         String reasonStr;
         try {
             reasonStr = ComponentSerializer.serializePlain(reason);
@@ -240,7 +261,7 @@ public class ClientSession extends TcpClientSession {
         } catch (Exception e) {
             CLIENT_LOG.error("Error awaiting client event loop shutdown", e);
         }
-        EVENT_BUS.post(new ClientDisconnectEvent(reasonStr, onlineDuration, onlineDurationWithQueueSkip, Proxy.getInstance().isInQueue(), Proxy.getInstance().getQueuePosition()));
+        EVENT_BUS.post(new ClientDisconnectEvent(reasonStr, onlineDuration, onlineDurationWithQueueSkip, wasInQueue, queuePosition));
     }
 
     public ProtocolVersion getProtocolVersion() {

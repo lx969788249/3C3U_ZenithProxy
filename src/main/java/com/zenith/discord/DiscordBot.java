@@ -313,7 +313,16 @@ public class DiscordBot {
                 jda.getPresence().setPresence(OnlineStatus.IDLE, Activity.customStatus("AutoReconnecting..."));
                 return;
             }
-            if (Proxy.getInstance().isInQueue()) {
+            if (Proxy.getInstance().isOn3c3u() && Proxy.getInstance().isConnected()) {
+                var tracker = Proxy.getInstance().getThreeCThreeUQueueTracker();
+                var now = Instant.now();
+                var snapshot = tracker.snapshot(now);
+                jda.getPresence().setPresence(
+                    snapshot.phase() == com.zenith.feature.queue.ThreeCThreeUQueueTracker.Phase.MAIN_SERVER
+                        ? OnlineStatus.ONLINE
+                        : OnlineStatus.IDLE,
+                    Activity.customStatus(tracker.formatPresence(snapshot, now)));
+            } else if (Proxy.getInstance().isInQueue()) {
                 jda.getPresence().setPresence(OnlineStatus.IDLE, Activity.customStatus(Queue.queuePositionStr()));
             } else if (Proxy.getInstance().isConnected()) {
                 jda.getPresence().setPresence(

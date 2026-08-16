@@ -70,7 +70,7 @@ public class ActiveHours extends Module {
                 ? Queue.getQueueStatus().prio()
                 : Queue.getQueueStatus().regular()
                 : 0;
-            var queueWaitSeconds = activeHoursConfig.queueEtaCalc ? Queue.getQueueWait(queueLength) : 0;
+            var queueWaitSeconds = proxy.isOn2b2t() && activeHoursConfig.queueEtaCalc ? Queue.getQueueWait(queueLength) : 0;
             var nowPlusQueueWait = LocalDateTime.now(ZoneId.of(activeHoursConfig.timeZoneId))
                 .plusSeconds(queueWaitSeconds)
                 .atZone(ZoneId.of(activeHoursConfig.timeZoneId))

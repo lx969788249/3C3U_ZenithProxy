@@ -12,6 +12,7 @@ import com.zenith.event.queue.QueueCompleteEvent;
 import com.zenith.event.queue.QueuePositionUpdateEvent;
 import com.zenith.event.queue.QueueSkipEvent;
 import com.zenith.event.queue.QueueStartEvent;
+import com.zenith.feature.queue.ThreeCThreeUQueueTracker;
 import com.zenith.event.server.ServerIconBuildEvent;
 import com.zenith.feature.api.mcstatus.MCStatusApi;
 import com.zenith.feature.autoupdater.AutoUpdater;
@@ -90,6 +91,7 @@ public class Proxy {
     private boolean inQueue = false;
     private boolean didQueueSkip = false;
     private int queuePosition = 0;
+    private final ThreeCThreeUQueueTracker threeCThreeUQueueTracker = new ThreeCThreeUQueueTracker();
     @Nullable private Instant connectTime;
     private Instant disconnectTime = Instant.now();
     private OptionalLong prevOnlineSeconds = OptionalLong.empty();
@@ -790,6 +792,28 @@ public class Proxy {
         return CONFIG.client.server.address.toLowerCase().endsWith("2b2t.org");
     }
 
+    public boolean isOn3c3u() {
+        var address = CONFIG.client.server.address.toLowerCase(Locale.ROOT);
+        return address.equals("3c3u.org") || address.endsWith(".3c3u.org");
+    }
+
+    public boolean shouldSuppressPlayerActivityAlerts() {
+        return ThreeCThreeUQueueTracker.shouldSuppressPlayerActivityAlerts(
+            isOn3c3u(), threeCThreeUQueueTracker.snapshot().phase());
+    }
+
+    public boolean isInQueue() {
+        if (isOn3c3u()) {
+            return threeCThreeUQueueTracker.snapshot().phase() == ThreeCThreeUQueueTracker.Phase.QUEUE;
+        }
+        return inQueue;
+    }
+
+    public int getQueuePosition() {
+        if (isOn3c3u()) return threeCThreeUQueueTracker.snapshot().position().orElse(0);
+        return queuePosition;
+    }
+
     public long getOnlineTimeSeconds() {
         var proxyConnectTime = this.connectTime;
         return proxyConnectTime != null
@@ -824,7 +848,7 @@ public class Proxy {
     public void handleConnectEvent(ClientConnectEvent event) {
         this.connectTime = Instant.now();
         if (isOn2b2t()) EXECUTOR.execute(Queue::updateQueueStatusNow);
-        else {
+        else if (!isOn3c3u()) {
             if (!ChatSchemaParser.hasCustomSchema()) {
                 CLIENT_LOG.warn("No custom chat schema found for server: {}, setting one may be required for chats and whispers to parse correctly: `help chatSchema`", ChatSchemaParser.getServerAddress());
             }

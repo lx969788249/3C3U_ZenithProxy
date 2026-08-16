@@ -102,6 +102,10 @@ public abstract class AutoUpdater {
     }
 
     private void conditionalRegularQueueUpdate() {
+        if (Proxy.getInstance().isOn3c3u()) {
+            update();
+            return;
+        }
         if (Proxy.getInstance().isConnected()) {
             // queue skipped
             if (!Proxy.getInstance().isInQueue()) return;

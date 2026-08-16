@@ -85,6 +85,14 @@ https://wiki.2b2t.vc/Setup/
 * Java plugins that add more modules created by the community
 * Many, many, more features
 
+## 3c3u.org queue support
+
+When the destination is `3c3u.org`, ZenithProxy tracks queue state from server packets only. The personal queue position is read only from an actionbar message such as `正在排队  位置：172`; the queue total is read only from a tab-list footer such as `142 in queue 3c3u.org`. These are separate values, and malformed or stale values are shown as unknown rather than reused indefinitely.
+
+While 3c3u state is connecting or queued, visual-range enter/leave/logout alerts (including their replay and whisper effects) and Discord relay player connection messages are suppressed. They resume once a non-empty, non-queue footer confirms the main server.
+
+Use `queueStatus` (aliases: `queue`, `q`) to view the `3C3U Queue Status` phase, personal position, queue total, current wait duration, and last packet update. The injected proxy tab-list footer includes the same queue summary while connecting or queued. 3c3u status never uses 2b2t queue APIs, pinging, or ETA estimates.
+
 # Wiki and Documentation
 
 https://wiki.2b2t.vc/

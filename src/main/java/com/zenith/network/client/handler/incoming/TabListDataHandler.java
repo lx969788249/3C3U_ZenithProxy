@@ -5,6 +5,7 @@ import com.zenith.event.client.ClientOnlineEvent;
 import com.zenith.event.client.PrioStatusEvent;
 import com.zenith.event.queue.QueueCompleteEvent;
 import com.zenith.event.queue.QueueStartEvent;
+import com.zenith.feature.queue.ThreeCThreeUQueueTracker;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.ClientEventLoopPacketHandler;
 import com.zenith.util.ComponentSerializer;
@@ -35,6 +36,8 @@ public class TabListDataHandler implements ClientEventLoopPacketHandler<Clientbo
             } else if (session.isOnline()) {
 //                parse2bPing(packet, session);
             }
+        } else if (Proxy.getInstance().isOn3c3u()) {
+            parse3c3uQueueState(packet, session);
         } else {
             if (!session.isOnline()) {
                 session.setOnline(true);
@@ -42,6 +45,27 @@ public class TabListDataHandler implements ClientEventLoopPacketHandler<Clientbo
             }
         }
         return true;
+    }
+
+    private void parse3c3uQueueState(final ClientboundTabListPacket packet, final ClientSession session) {
+        final var tracker = Proxy.getInstance().getThreeCThreeUQueueTracker();
+        final String footer = ComponentSerializer.serializePlain(packet.getFooter());
+        final ThreeCThreeUQueueTracker.Observation observation = tracker.observeFooter(session.getThreeCThreeUQueueGeneration(), footer);
+        if (observation.queueStarted()) {
+            session.setInQueue(true);
+            session.setOnline(false);
+            session.postThreeCThreeUQueueEvent(new QueueStartEvent(false, Duration.ZERO));
+        }
+        if (observation.mainServerReached()) {
+            session.setInQueue(false);
+            if (observation.queueCompleted()) {
+                session.postThreeCThreeUQueueEvent(new QueueCompleteEvent(tracker.queueDuration()));
+            }
+            if (!session.isOnline()) {
+                session.setOnline(true);
+                session.postThreeCThreeUQueueEvent(new ClientOnlineEvent());
+            }
+        }
     }
 
     private synchronized void parse2bQueueState(ClientboundTabListPacket packet, ClientSession session) {

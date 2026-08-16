@@ -1,5 +1,6 @@
 package com.zenith.database;
 
+import com.zenith.Proxy;
 import com.zenith.event.db.DatabaseTickEvent;
 import com.zenith.feature.queue.Queue;
 
@@ -42,6 +43,7 @@ public class QueueLengthDatabase extends LockingDatabase {
     }
 
     public void handleTickEvent(final DatabaseTickEvent event) {
+        if (Proxy.getInstance().isOn3c3u()) return;
         if (Queue.lastQueueLengthUpdateMethod() != Queue.QueueLengthUpdateMethod.PING) return;
         var queueStatus = Queue.getQueueStatus();
         this.insert(Instant.now(), handle ->

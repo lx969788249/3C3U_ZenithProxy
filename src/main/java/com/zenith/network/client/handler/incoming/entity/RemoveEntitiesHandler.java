@@ -2,7 +2,9 @@ package com.zenith.network.client.handler.incoming.entity;
 
 import com.zenith.cache.data.entity.Entity;
 import com.zenith.cache.data.entity.EntityPlayer;
+import com.zenith.Proxy;
 import com.zenith.event.module.ServerPlayerLeftVisualRangeEvent;
+import com.zenith.feature.queue.PlayerActivityEventGate;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.ClientEventLoopPacketHandler;
 import org.geysermc.mcprotocollib.protocol.data.game.PlayerListEntry;
@@ -27,13 +29,17 @@ public class RemoveEntitiesHandler implements ClientEventLoopPacketHandler<Clien
                         }
                     }
                     if (removed instanceof EntityPlayer player && !player.isSelfPlayer()) {
-                        EVENT_BUS.postAsync(new ServerPlayerLeftVisualRangeEvent(
-                            CACHE.getTabListCache()
-                                .get(player.getUuid())
-                                // todo: this packet seems to always be received first and we shouldn't hit the orElse, but this could change based on the server
-                                .orElse(new PlayerListEntry("", player.getUuid())),
-                            player
-                        ));
+                        // Entity removal is retained; activity notification is decided before postAsync.
+                        PlayerActivityEventGate.emitIfAllowed(
+                            Proxy.getInstance().shouldSuppressPlayerActivityAlerts(),
+                            new ServerPlayerLeftVisualRangeEvent(
+                                CACHE.getTabListCache()
+                                    .get(player.getUuid())
+                                    // todo: this packet seems to always be received first and we shouldn't hit the orElse, but this could change based on the server
+                                    .orElse(new PlayerListEntry("", player.getUuid())),
+                                player
+                            ),
+                            EVENT_BUS::postAsync);
                     }
                 }
             } catch (final Exception e) {
