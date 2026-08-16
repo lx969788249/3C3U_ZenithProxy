@@ -12,6 +12,8 @@ import com.zenith.event.queue.QueueCompleteEvent;
 import com.zenith.event.queue.QueuePositionUpdateEvent;
 import com.zenith.event.queue.QueueSkipEvent;
 import com.zenith.event.queue.QueueStartEvent;
+import com.zenith.event.player.PlayerDisconnectedEvent;
+import com.zenith.feature.player.TeleportQueueRecovery;
 import com.zenith.feature.queue.ThreeCThreeUQueueTracker;
 import com.zenith.event.server.ServerIconBuildEvent;
 import com.zenith.feature.api.mcstatus.MCStatusApi;
@@ -69,6 +71,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static com.github.rfresh2.EventConsumer.of;
@@ -131,9 +135,46 @@ public class Proxy {
             of(QueueSkipEvent.class, this::handleQueueSkipEvent),
             of(ClientOnlineEvent.class, this::handlePlayerOnlineEvent),
             of(PrioStatusEvent.class, this::handlePrioStatusEvent),
-            of(PrivateMessageSendEvent.class, this::handlePrivateMessageSendEvent)
+            of(PrivateMessageSendEvent.class, this::handlePrivateMessageSendEvent),
+            of(PlayerDisconnectedEvent.class, this::handleControllingPlayerDisconnected)
         );
     }
+
+    private void handleControllingPlayerDisconnected(final PlayerDisconnectedEvent event) {
+        final var recoveryContext = createTeleportQueueRecoveryContext();
+        if (recoveryContext == null) return;
+
+        TeleportQueueRecovery.scheduleAfterControllingPlayerDisconnect(
+            event.session().isPlayer(),
+            event.session().isSpectator(),
+            recoveryContext.upstreamConnected(),
+            recoveryContext.upstreamEventLoopShuttingDown(),
+            recoveryContext.runResyncBatchAndHasMore(),
+            recoveryContext.eventLoopScheduler());
+    }
+
+    /**
+     * Supplies only the upstream state and work needed to recover teleport batches after the
+     * controlling player disconnects. A missing client has no recovery target.
+     */
+    protected @Nullable TeleportQueueRecoveryContext createTeleportQueueRecoveryContext() {
+        final ClientSession upstream = client;
+        if (upstream == null) return null;
+        final var upstreamEventLoop = upstream.getClientEventLoop();
+
+        return new TeleportQueueRecoveryContext(
+            () -> upstream.isConnected() && client == upstream,
+            upstreamEventLoop::isShuttingDown,
+            () -> BOT.resyncTeleportIfActive(upstream),
+            upstreamEventLoop::execute);
+    }
+
+    protected record TeleportQueueRecoveryContext(
+        BooleanSupplier upstreamConnected,
+        BooleanSupplier upstreamEventLoopShuttingDown,
+        BooleanSupplier runResyncBatchAndHasMore,
+        Consumer<Runnable> eventLoopScheduler
+    ) { }
 
     public void start() {
         DEFAULT_LOG.info("Starting ZenithProxy-{}", VERSION);

@@ -17,6 +17,7 @@ import com.zenith.mc.entity.EntityDimensions;
 import com.zenith.mc.entity.EntityRegistry;
 import com.zenith.mc.item.ItemRegistry;
 import com.zenith.module.api.ModuleUtils;
+import com.zenith.network.client.ClientSession;
 import com.zenith.util.math.MathHelper;
 import com.zenith.util.math.MutableVec3d;
 import it.unimi.dsi.fastutil.doubles.DoubleArraySet;
@@ -24,6 +25,7 @@ import it.unimi.dsi.fastutil.doubles.DoubleArrays;
 import it.unimi.dsi.fastutil.doubles.DoubleSet;
 import lombok.Getter;
 import org.geysermc.mcprotocollib.protocol.data.game.PlayerListEntry;
+import org.geysermc.mcprotocollib.network.packet.Packet;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.Effect;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.EquipmentSlot;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.attribute.Attribute;
@@ -40,6 +42,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.player.PositionEleme
 import org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType;
 import org.geysermc.mcprotocollib.protocol.data.game.item.component.DataComponentTypes;
 import org.geysermc.mcprotocollib.protocol.data.game.scoreboard.CollisionRule;
+import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity.player.ClientboundPlayerPositionPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level.ClientboundExplodePacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.ServerboundClientTickEndPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.inventory.ServerboundContainerClosePacket;
@@ -59,6 +62,7 @@ import static com.zenith.Globals.*;
 public final class Bot extends ModuleUtils {
     public static final int TICK_PRIORITY = -20000;
     public static final int POST_TICK_PRIORITY = -30000;
+    private static final int TELEPORT_RESYNC_BATCH_SIZE = 25;
     @Getter private double x;
     @Getter private double y;
     @Getter private double z;
@@ -1539,24 +1543,31 @@ public final class Bot extends ModuleUtils {
         });
     }
 
+    /**
+     * Recovers one queued teleport batch only when the captured upstream session is still active
+     * on its own event loop.
+     */
+    public boolean resyncTeleportIfActive(final ClientSession expectedSession) {
+        if (!isExpectedSessionActive(expectedSession)) return false;
+        if (!CACHE.getPlayerCache().getTeleportQueue().isEmpty()) {
+            warn("Detected teleport desync, resyncing. queueSize: {}", CACHE.getPlayerCache().getTeleportQueue().size());
+        }
+        return TeleportQueueRecovery.runBoundedWork(
+            TELEPORT_RESYNC_BATCH_SIZE,
+            () -> isExpectedSessionActive(expectedSession),
+            () -> !CACHE.getPlayerCache().getTeleportQueue().isEmpty(),
+            () -> resyncQueuedTeleportForSession(expectedSession));
+    }
+
+    /** Processes at most 25 queued teleports and reports whether another batch is needed. */
     private boolean resyncTeleport() {
         // can occur when a connected player disconnects in an unusual way like crashing
         if (!CACHE.getPlayerCache().getTeleportQueue().isEmpty()) {
             warn("Detected teleport desync, resyncing. queueSize: {}", CACHE.getPlayerCache().getTeleportQueue().size());
             int count = 0;
-            while (!CACHE.getPlayerCache().getTeleportQueue().isEmpty() && count++ < 25) {
+            while (!CACHE.getPlayerCache().getTeleportQueue().isEmpty() && count++ < TELEPORT_RESYNC_BATCH_SIZE) {
                 var packet = CACHE.getPlayerCache().getTeleportQueue().poll();
-                var cache = CACHE.getPlayerCache();
-                cache
-                    .setRespawning(false)
-                    .setX((packet.getRelatives().contains(PositionElement.X) ? cache.getX() : 0.0d) + packet.getX())
-                    .setY((packet.getRelatives().contains(PositionElement.Y) ? cache.getY() : 0.0d) + packet.getY())
-                    .setZ((packet.getRelatives().contains(PositionElement.Z) ? cache.getZ() : 0.0d) + packet.getZ())
-                    .setVelX((packet.getRelatives().contains(PositionElement.DELTA_X) ? cache.getVelX() : 0.0d) + packet.getDeltaX())
-                    .setVelY((packet.getRelatives().contains(PositionElement.DELTA_Y) ? cache.getVelY() : 0.0d) + packet.getDeltaY())
-                    .setVelZ((packet.getRelatives().contains(PositionElement.DELTA_Z) ? cache.getVelZ() : 0.0d) + packet.getDeltaZ())
-                    .setYaw((packet.getRelatives().contains(PositionElement.Y_ROT) ? cache.getYaw() : 0.0f) + packet.getYaw())
-                    .setPitch((packet.getRelatives().contains(PositionElement.X_ROT) ? cache.getPitch() : 0.0f) + packet.getPitch());
+                updateCacheFromQueuedTeleport(packet);
                 debug("Sending queued teleport: {}", packet.getId());
                 syncFromCache(true);
                 sendClientPacketAwait(new ServerboundAcceptTeleportationPacket(packet.getId()));
@@ -1564,6 +1575,56 @@ public final class Bot extends ModuleUtils {
             }
         }
         return !CACHE.getPlayerCache().getTeleportQueue().isEmpty();
+    }
+
+    private boolean resyncQueuedTeleportForSession(final ClientSession expectedSession) {
+        // The recovery path is intentionally guarded before removing an item or mutating cache.
+        if (!isExpectedSessionActive(expectedSession)) return false;
+        final var packet = CACHE.getPlayerCache().getTeleportQueue().poll();
+        if (packet == null) return true;
+        if (!isExpectedSessionActive(expectedSession)) {
+            CACHE.getPlayerCache().getTeleportQueue().add(packet);
+            return false;
+        }
+
+        updateCacheFromQueuedTeleport(packet);
+        debug("Sending queued teleport: {}", packet.getId());
+        syncFromCache(true);
+        if (!sendRecoveryPacketAwait(expectedSession, new ServerboundAcceptTeleportationPacket(packet.getId()))) return false;
+        return sendRecoveryPacketAwait(expectedSession, new ServerboundMovePlayerPosRotPacket(false, false, x, y, z, yaw, pitch));
+    }
+
+    private boolean sendRecoveryPacketAwait(final ClientSession expectedSession, final Packet packet) {
+        // Do not use ModuleUtils here: it resolves Proxy.client again and could target a replacement.
+        if (!isExpectedSessionActive(expectedSession)) return false;
+        try {
+            expectedSession.sendAwait(packet);
+            return true;
+        } catch (final Exception e) {
+            error("Error sending awaited packet: {}", packet.getClass().getSimpleName(), e);
+            return false;
+        }
+    }
+
+    private static boolean isExpectedSessionActive(final ClientSession expectedSession) {
+        return expectedSession != null
+            && Proxy.getInstance().getClient() == expectedSession
+            && expectedSession.isConnected()
+            && expectedSession.getClientEventLoop().inEventLoop();
+    }
+
+    private void updateCacheFromQueuedTeleport(final ClientboundPlayerPositionPacket packet) {
+        var cache = CACHE.getPlayerCache();
+        cache
+            .setRespawning(false)
+            .setX((packet.getRelatives().contains(PositionElement.X) ? cache.getX() : 0.0d) + packet.getX())
+            .setY((packet.getRelatives().contains(PositionElement.Y) ? cache.getY() : 0.0d) + packet.getY())
+            .setZ((packet.getRelatives().contains(PositionElement.Z) ? cache.getZ() : 0.0d) + packet.getZ())
+            .setVelX((packet.getRelatives().contains(PositionElement.DELTA_X) ? cache.getVelX() : 0.0d) + packet.getDeltaX())
+            .setVelY((packet.getRelatives().contains(PositionElement.DELTA_Y) ? cache.getVelY() : 0.0d) + packet.getDeltaY())
+            .setVelZ((packet.getRelatives().contains(PositionElement.DELTA_Z) ? cache.getVelZ() : 0.0d) + packet.getDeltaZ())
+            .setYaw((packet.getRelatives().contains(PositionElement.Y_ROT) ? cache.getYaw() : 0.0f) + packet.getYaw())
+            .setPitch((packet.getRelatives().contains(PositionElement.X_ROT) ? cache.getPitch() : 0.0f) + packet.getPitch());
     }
 
     public void updateAttributes() {

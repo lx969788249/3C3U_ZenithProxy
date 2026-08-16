@@ -129,8 +129,18 @@ public class Embed {
 
     public MessageEmbed toJDAEmbed() {
         var builder = new EmbedBuilder();
-        if (!truncateEmbed(this)) {
-            return builder.build();
+        final Author originalAuthor = author;
+        final Author renderedAuthor;
+        try {
+            // Include the account label while enforcing both per-field and 6,000-character limits,
+            // but restore the caller's undecorated author before returning.
+            author = renderedAuthor(CONFIG.authentication.username);
+            if (!truncateEmbed(this)) {
+                return builder.build();
+            }
+            renderedAuthor = author;
+        } finally {
+            author = originalAuthor;
         }
         builder
             .setTitle(title)
@@ -141,12 +151,26 @@ public class Embed {
             .setImage(image)
             .setThumbnail(thumbnail)
             .setFooter(footer != null ? footer.text() : null, footer != null ? footer.iconUrl() : null)
-            .setAuthor(author != null ? author.name() : null, author != null ? author.url() : null, author != null ? author.iconUrl() : null);
+            .setAuthor(renderedAuthor != null ? renderedAuthor.name() : null, renderedAuthor != null ? renderedAuthor.url() : null, renderedAuthor != null ? renderedAuthor.iconUrl() : null);
         for (var field : fields) {
             builder.addField(field.name(), field.value(), field.inline());
         }
         return builder.build();
 
+    }
+
+    private @Nullable Author renderedAuthor(final String username) {
+        if (username == null || username.isBlank()) return author;
+
+        final String accountLabel = "Account: " + username;
+        final String originalName = author != null ? author.name() : null;
+        final String name = originalName == null || originalName.isBlank()
+            ? accountLabel
+            : accountLabel + " | " + originalName;
+        return new Author(
+            name.length() <= 256 ? name : name.substring(0, 256),
+            author != null ? author.url() : null,
+            author != null ? author.iconUrl() : null);
     }
 
     public static Embed builder() {
@@ -192,7 +216,7 @@ public class Embed {
             }
             charCount += embed.footer().text().length();
         }
-        if (embed.author() != null) {
+        if (embed.author() != null && embed.author().name() != null) {
             if (embed.author().name().length() > 256) {
                 DISCORD_LOG.error("Embed author name exceeds 256 characters: {}", embed.author().name());
                 return false;
@@ -209,16 +233,16 @@ public class Embed {
     public static boolean truncateEmbed(Embed embed) {
         int charCount = 0;
         if (embed.isTitlePresent()) {
-            charCount += embed.title().length();
             if (embed.title().length() > 256) {
                 embed.title(embed.title().substring(0, 256));
             }
+            charCount += embed.title().length();
         }
         if (embed.isDescriptionPresent()) {
-            charCount += embed.description().length();
             if (embed.description().length() > 4096) {
                 embed.description(embed.description().substring(0, 4096));
             }
+            charCount += embed.description().length();
         }
         if (embed.fields().size() > 25) {
             embed.fields(new ArrayList<>(embed.fields().subList(0, 25)));
@@ -246,16 +270,56 @@ public class Embed {
             }
             charCount += embed.footer().text().length();
         }
-        if (embed.author() != null) {
+        if (embed.author() != null && embed.author().name() != null) {
             if (embed.author().name().length() > 256) {
                 embed.author(new Author(embed.author().name().substring(0, 256), embed.author().url(), embed.author().iconUrl()));
             }
             charCount += embed.author().name().length();
         }
         if (charCount > 6000) {
-            DISCORD_LOG.error("Embed character count exceeds 6000 characters");
-            return false;
+            truncateToTotalCharacterLimit(embed, charCount - 6000);
         }
         return true;
+    }
+
+    private static void truncateToTotalCharacterLimit(final Embed embed, int overflow) {
+        // Trim trailing field content first while retaining valid non-empty names and values.
+        // The rendered account author is preserved whenever other content can make room for it.
+        for (int i = embed.fields().size() - 1; i >= 0 && overflow > 0; i--) {
+            final Field field = embed.fields().get(i);
+            int trim = Math.min(overflow, Math.max(0, field.value().length() - 1));
+            final String value = field.value().substring(0, field.value().length() - trim);
+            overflow -= trim;
+
+            trim = Math.min(overflow, Math.max(0, field.name().length() - 1));
+            final String name = field.name().substring(0, field.name().length() - trim);
+            overflow -= trim;
+
+            if (overflow > 0) {
+                embed.fields().remove(i);
+                overflow -= 2;
+            } else if (!name.equals(field.name()) || !value.equals(field.value())) {
+                embed.fields().set(i, new Field(name, value, field.inline()));
+            }
+        }
+        if (overflow > 0 && embed.description() != null) {
+            final int trim = Math.min(overflow, embed.description().length());
+            final int remaining = embed.description().length() - trim;
+            embed.description(remaining == 0 ? null : embed.description().substring(0, remaining));
+            overflow -= trim;
+        }
+        if (overflow > 0 && embed.footer() != null) {
+            final int trim = Math.min(overflow, embed.footer().text().length());
+            final int remaining = embed.footer().text().length() - trim;
+            embed.footer(remaining == 0
+                ? null
+                : new Footer(embed.footer().text().substring(0, remaining), embed.footer().iconUrl()));
+            overflow -= trim;
+        }
+        if (overflow > 0 && embed.title() != null) {
+            final int trim = Math.min(overflow, embed.title().length());
+            final int remaining = embed.title().length() - trim;
+            embed.title(remaining == 0 ? null : embed.title().substring(0, remaining));
+        }
     }
 }

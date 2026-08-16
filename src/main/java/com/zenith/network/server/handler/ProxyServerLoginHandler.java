@@ -44,17 +44,8 @@ public class ProxyServerLoginHandler {
             connection.disconnect("Failed to retrieve profile.");
             return;
         }
-        if (!Wait.waitUntil(() -> Proxy.getInstance().isConnected()
-                                && (Proxy.getInstance().getOnlineTimeSeconds() > 1 || Proxy.getInstance().isInQueue())
-                                && CACHE.getPlayerCache().getEntityId() != -1
-                                && nonNull(CACHE.getProfileCache().getProfile())
-                                && nonNull(CACHE.getPlayerCache().getGameMode())
-                                && nonNull(CACHE.getChunkCache().getCurrentDimension())
-                                && nonNull(CACHE.getChunkCache().getWorldName())
-                                && nonNull(CACHE.getTabListCache().get(CACHE.getProfileCache().getProfile().getId()))
-                                && connection.isWhitelistChecked()
-                                && CACHE.getPlayerCache().getTeleportQueue().isEmpty(),
-                            20)) {
+        if (!Wait.waitUntil(() -> isClientReady(connection), 20)) {
+            logLoginReadinessTimeout(connection);
             connection.disconnect("Client login timed out.");
             return;
         }
@@ -129,5 +120,35 @@ public class ProxyServerLoginHandler {
             "ZenithProxy Support", "https://discord.gg/nJZrSaRKtb"
         )));
         connection.setConfigured(true);
+    }
+
+    private boolean isClientReady(final ServerSession connection) {
+        final GameProfile upstreamProfile = CACHE.getProfileCache().getProfile();
+        return Proxy.getInstance().isConnected()
+            && (Proxy.getInstance().getOnlineTimeSeconds() > 1 || Proxy.getInstance().isInQueue())
+            && CACHE.getPlayerCache().getEntityId() != -1
+            && nonNull(upstreamProfile)
+            && nonNull(CACHE.getPlayerCache().getGameMode())
+            && nonNull(CACHE.getChunkCache().getCurrentDimension())
+            && nonNull(CACHE.getChunkCache().getWorldName())
+            && upstreamProfile != null && nonNull(CACHE.getTabListCache().get(upstreamProfile.getId()))
+            && connection.isWhitelistChecked()
+            && CACHE.getPlayerCache().getTeleportQueue().isEmpty();
+    }
+
+    private void logLoginReadinessTimeout(final ServerSession connection) {
+        final GameProfile upstreamProfile = CACHE.getProfileCache().getProfile();
+        SERVER_LOG.warn(
+            "Client login readiness timed out: connected={}, onlineOrQueue={}, entityIdPresent={}, profilePresent={}, gameModePresent={}, dimensionPresent={}, worldNamePresent={}, selfInTabList={}, whitelistChecked={}, teleportQueueSize={}",
+            Proxy.getInstance().isConnected(),
+            Proxy.getInstance().getOnlineTimeSeconds() > 1 || Proxy.getInstance().isInQueue(),
+            CACHE.getPlayerCache().getEntityId() != -1,
+            upstreamProfile != null,
+            CACHE.getPlayerCache().getGameMode() != null,
+            CACHE.getChunkCache().getCurrentDimension() != null,
+            CACHE.getChunkCache().getWorldName() != null,
+            upstreamProfile != null && CACHE.getTabListCache().get(upstreamProfile.getId()).isPresent(),
+            connection.isWhitelistChecked(),
+            CACHE.getPlayerCache().getTeleportQueue().size());
     }
 }

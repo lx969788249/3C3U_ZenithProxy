@@ -27,6 +27,24 @@ class ThreeCThreeUQueueTrackerTest {
     }
 
     @Test
+    void actionbarAndSubtitlePersonalPositionsUseTheSameTrackerStateWithoutInventingATotal() {
+        var tracker = tracker();
+        var generation = tracker.beginConnect();
+
+        assertTrue(tracker.observeActionbar(generation, "正在排队 位置：172").queueStarted());
+        assertEquals(172, tracker.snapshot().position().orElseThrow());
+        assertTrue(tracker.snapshot().queueTotal().isEmpty());
+
+        assertTrue(tracker.observeActionbar(generation, "555 Playing  |  Position in queue: 165").positionChanged());
+        assertEquals(165, tracker.snapshot().position().orElseThrow());
+        assertTrue(tracker.snapshot().queueTotal().isEmpty());
+
+        tracker.observeFooter(generation, "142 in queue 3c3u.org");
+        assertEquals(165, tracker.snapshot().position().orElseThrow());
+        assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
+    }
+
+    @Test
     void rejectsMalformedConflictingAndOutOfRangePersonalPositions() {
         assertTrue(ThreeCThreeUQueueTracker.parsePersonalPosition("正在排队 位置：0").isEmpty());
         assertTrue(ThreeCThreeUQueueTracker.parsePersonalPosition("正在排队 位置：0172").isEmpty());
