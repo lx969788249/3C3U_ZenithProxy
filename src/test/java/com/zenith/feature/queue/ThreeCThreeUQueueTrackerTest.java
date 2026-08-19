@@ -64,9 +64,43 @@ class ThreeCThreeUQueueTrackerTest {
         assertTrue(ThreeCThreeUQueueTracker.parseQueueTotal("1000001 in queue 3c3u.org").isEmpty());
         var tracker = tracker();
         var generation = tracker.beginConnect();
-        tracker.observeFooter(generation, "> 594 online players | 142 in queue 3c3u.org 群号523983557");
+        var observation = tracker.observeFooter(generation, "> 594 online players | 142 in queue 3c3u.org 群号523983557");
+        assertFalse(observation.queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.CONNECTING, tracker.snapshot().phase());
         assertTrue(tracker.snapshot().position().isEmpty());
         assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
+    }
+
+    @Test
+    void freshGlobalTotalAfterPersonalPositionExpiresCompletesQueue() {
+        var clock = new MutableClock(NOW);
+        var tracker = new ThreeCThreeUQueueTracker(clock);
+        var generation = tracker.beginConnect();
+        tracker.observeActionbar(generation, "正在排队 位置：172");
+
+        clock.advance(ThreeCThreeUQueueTracker.FRESHNESS_WINDOW.plusSeconds(1));
+        var observation = tracker.observeFooter(generation, "> 594 online players | 90 in queue 3c3u.org 群号523983557");
+
+        assertTrue(observation.mainServerReached());
+        assertTrue(observation.queueCompleted());
+        assertFalse(observation.queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.MAIN_SERVER, tracker.snapshot().phase());
+        assertTrue(tracker.snapshot().position().isEmpty());
+        assertEquals(90, tracker.snapshot().queueTotal().orElseThrow());
+    }
+
+    @Test
+    void globalQueueTotalCannotMoveMainServerBackToQueue() {
+        var tracker = tracker();
+        var generation = tracker.beginConnect();
+        tracker.observeActionbar(generation, "正在排队 位置：1");
+        tracker.observeFooter(generation, "Welcome to 3c3u.org");
+
+        var observation = tracker.observeFooter(generation, "> 594 online players | 90 in queue 3c3u.org 群号523983557");
+
+        assertFalse(observation.queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.MAIN_SERVER, tracker.snapshot().phase());
+        assertEquals(90, tracker.snapshot().queueTotal().orElseThrow());
     }
 
     @Test
@@ -231,7 +265,8 @@ class ThreeCThreeUQueueTrackerTest {
         assertNotEquals(firstGeneration, secondGeneration);
         assertFalse(tracker.observeFooter(firstGeneration, "142 in queue 3c3u.org").queueStarted());
         assertEquals(ThreeCThreeUQueueTracker.Phase.CONNECTING, tracker.snapshot().phase());
-        assertTrue(tracker.observeFooter(secondGeneration, "142 in queue 3c3u.org").queueStarted());
+        assertFalse(tracker.observeFooter(secondGeneration, "142 in queue 3c3u.org").queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.CONNECTING, tracker.snapshot().phase());
         assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
     }
 

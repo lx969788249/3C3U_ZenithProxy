@@ -83,12 +83,14 @@ public final class ThreeCThreeUQueueTracker {
         var total = parseQueueTotal(footer);
         if (total.isPresent()) {
             var now = clock.instant();
-            var queueStarted = state.phase != Phase.QUEUE;
-            var startedAt = queueStarted ? now : state.queueStartedAt;
-            var position = queueStarted ? null : state.position;
-            var positionUpdatedAt = queueStarted ? null : state.positionUpdatedAt;
-            state = new State(Phase.QUEUE, position, positionUpdatedAt, total.get(), now, startedAt, null);
-            return new Observation(queueStarted, false, false, false);
+            if (state.phase == Phase.QUEUE && !isFresh(state.positionUpdatedAt, now)) {
+                var completedDuration = queueDurationAt(state.queueStartedAt, now);
+                state = new State(Phase.MAIN_SERVER, null, null, total.get(), now, state.queueStartedAt, completedDuration);
+                return new Observation(false, false, true, true);
+            }
+            state = new State(state.phase, state.position, state.positionUpdatedAt, total.get(), now,
+                state.queueStartedAt, state.completedQueueDuration);
+            return NO_OBSERVATION;
         }
         // A malformed queue footer is not evidence that the player reached the main server.
         if (QUEUE_MARKER.matcher(footer).find()) return NO_OBSERVATION;
