@@ -84,7 +84,7 @@ public class LoginHandler implements PacketHandler<ClientboundLoginPacket, Clien
     }
 
     static boolean shouldPublishOnlineAtLogin(final boolean isOn2b2t, final boolean isOn3c3u) {
-        return !isOn2b2t && !isOn3c3u;
+        return !isOn2b2t;
     }
 
     static void publishPlayReady() {

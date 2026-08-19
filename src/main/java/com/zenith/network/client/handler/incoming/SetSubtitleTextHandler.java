@@ -38,7 +38,6 @@ public class SetSubtitleTextHandler implements ClientEventLoopPacketHandler<Clie
         final ThreeCThreeUQueueTracker.Observation observation = tracker.observeActionbar(session.getThreeCThreeUQueueGeneration(), plainText);
         if (observation.queueStarted()) {
             session.setInQueue(true);
-            session.setOnline(false);
             session.postThreeCThreeUQueueEvent(new QueueStartEvent(false, Duration.ZERO));
         }
         if (observation.positionChanged()) {

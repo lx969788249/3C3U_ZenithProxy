@@ -2,7 +2,6 @@ package com.zenith.network.client.handler.postoutgoing;
 
 import com.zenith.Proxy;
 import com.zenith.event.client.ClientConfigurationEvent;
-import com.zenith.event.client.ClientOnlineEvent;
 import com.zenith.event.queue.QueueCompleteEvent;
 import com.zenith.network.client.ClientSession;
 import com.zenith.network.codec.PostOutgoingPacketHandler;
@@ -22,10 +21,6 @@ public class PostOutgoingFinishConfigurationHandler implements PostOutgoingPacke
                 session.setInQueue(false);
                 if (observation.queueCompleted()) {
                     session.postThreeCThreeUQueueEvent(new QueueCompleteEvent(tracker.queueDuration()));
-                }
-                if (!session.isOnline()) {
-                    session.setOnline(true);
-                    session.postThreeCThreeUQueueEvent(new ClientOnlineEvent());
                 }
             }
         }

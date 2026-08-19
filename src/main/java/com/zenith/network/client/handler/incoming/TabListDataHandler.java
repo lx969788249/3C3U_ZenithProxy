@@ -53,17 +53,12 @@ public class TabListDataHandler implements ClientEventLoopPacketHandler<Clientbo
         final ThreeCThreeUQueueTracker.Observation observation = tracker.observeFooter(session.getThreeCThreeUQueueGeneration(), footer);
         if (observation.queueStarted()) {
             session.setInQueue(true);
-            session.setOnline(false);
             session.postThreeCThreeUQueueEvent(new QueueStartEvent(false, Duration.ZERO));
         }
         if (observation.mainServerReached()) {
             session.setInQueue(false);
             if (observation.queueCompleted()) {
                 session.postThreeCThreeUQueueEvent(new QueueCompleteEvent(tracker.queueDuration()));
-            }
-            if (!session.isOnline()) {
-                session.setOnline(true);
-                session.postThreeCThreeUQueueEvent(new ClientOnlineEvent());
             }
         }
     }
