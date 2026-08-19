@@ -20,7 +20,9 @@ public class PostOutgoingFinishConfigurationHandler implements PostOutgoingPacke
             final var observation = tracker.observeBackendReconfiguration(session.getThreeCThreeUQueueGeneration());
             if (observation.mainServerReached()) {
                 session.setInQueue(false);
-                session.postThreeCThreeUQueueEvent(new QueueCompleteEvent(tracker.queueDuration()));
+                if (observation.queueCompleted()) {
+                    session.postThreeCThreeUQueueEvent(new QueueCompleteEvent(tracker.queueDuration()));
+                }
                 if (!session.isOnline()) {
                     session.setOnline(true);
                     session.postThreeCThreeUQueueEvent(new ClientOnlineEvent());

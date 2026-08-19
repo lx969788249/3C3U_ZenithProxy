@@ -66,8 +66,24 @@ class ThreeCThreeUQueueTrackerTest {
         var generation = tracker.beginConnect();
         var observation = tracker.observeFooter(generation, "> 594 online players | 142 in queue 3c3u.org 群号523983557");
         assertFalse(observation.queueStarted());
+        assertFalse(observation.mainServerReached());
+        assertFalse(observation.queueCompleted());
         assertEquals(ThreeCThreeUQueueTracker.Phase.CONNECTING, tracker.snapshot().phase());
         assertTrue(tracker.snapshot().position().isEmpty());
+        assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
+    }
+
+    @Test
+    void personalPositionPreservesTotalAlreadyObservedWhileConnecting() {
+        var tracker = tracker();
+        var generation = tracker.beginConnect();
+        tracker.observeFooter(generation, "142 in queue 3c3u.org");
+
+        var observation = tracker.observeActionbar(generation, "正在排队 位置：172");
+
+        assertTrue(observation.queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.QUEUE, tracker.snapshot().phase());
+        assertEquals(172, tracker.snapshot().position().orElseThrow());
         assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
     }
 
@@ -78,7 +94,13 @@ class ThreeCThreeUQueueTrackerTest {
         var generation = tracker.beginConnect();
         tracker.observeActionbar(generation, "正在排队 位置：172");
 
-        clock.advance(ThreeCThreeUQueueTracker.FRESHNESS_WINDOW.plusSeconds(1));
+        clock.advance(ThreeCThreeUQueueTracker.FRESHNESS_WINDOW);
+        var atBoundary = tracker.observeFooter(generation, "> 594 online players | 91 in queue 3c3u.org 群号523983557");
+        assertFalse(atBoundary.mainServerReached());
+        assertFalse(atBoundary.queueCompleted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.QUEUE, tracker.snapshot().phase());
+
+        clock.advance(Duration.ofNanos(1));
         var observation = tracker.observeFooter(generation, "> 594 online players | 90 in queue 3c3u.org 群号523983557");
 
         assertTrue(observation.mainServerReached());
@@ -99,6 +121,8 @@ class ThreeCThreeUQueueTrackerTest {
         var observation = tracker.observeFooter(generation, "> 594 online players | 90 in queue 3c3u.org 群号523983557");
 
         assertFalse(observation.queueStarted());
+        assertFalse(observation.mainServerReached());
+        assertFalse(observation.queueCompleted());
         assertEquals(ThreeCThreeUQueueTracker.Phase.MAIN_SERVER, tracker.snapshot().phase());
         assertEquals(90, tracker.snapshot().queueTotal().orElseThrow());
     }
@@ -268,6 +292,20 @@ class ThreeCThreeUQueueTrackerTest {
         assertFalse(tracker.observeFooter(secondGeneration, "142 in queue 3c3u.org").queueStarted());
         assertEquals(ThreeCThreeUQueueTracker.Phase.CONNECTING, tracker.snapshot().phase());
         assertEquals(142, tracker.snapshot().queueTotal().orElseThrow());
+    }
+
+    @Test
+    void backendReconfigurationWhileConnectingMarksMainWithoutCompletingQueue() {
+        var tracker = tracker();
+        var generation = tracker.beginConnect();
+
+        var observation = tracker.observeBackendReconfiguration(generation);
+
+        assertTrue(observation.mainServerReached());
+        assertFalse(observation.queueStarted());
+        assertFalse(observation.queueCompleted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.MAIN_SERVER, tracker.snapshot().phase());
+        assertEquals(Duration.ZERO, tracker.queueDuration());
     }
 
     @Test

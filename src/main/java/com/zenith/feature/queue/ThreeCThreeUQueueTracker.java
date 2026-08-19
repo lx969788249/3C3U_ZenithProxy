@@ -71,8 +71,9 @@ public final class ThreeCThreeUQueueTracker {
         var now = clock.instant();
         var queueStarted = state.phase != Phase.QUEUE;
         var startedAt = queueStarted ? now : state.queueStartedAt;
-        var total = queueStarted ? null : state.total;
-        var totalUpdatedAt = queueStarted ? null : state.totalUpdatedAt;
+        var clearTotal = queueStarted && state.phase != Phase.CONNECTING;
+        var total = clearTotal ? null : state.total;
+        var totalUpdatedAt = clearTotal ? null : state.totalUpdatedAt;
         var positionChanged = !Objects.equals(state.position, position.get());
         state = new State(Phase.QUEUE, position.get(), now, total, totalUpdatedAt, startedAt, null);
         return new Observation(queueStarted, positionChanged, false, false);
@@ -102,9 +103,11 @@ public final class ThreeCThreeUQueueTracker {
     }
 
     public synchronized Observation observeBackendReconfiguration(final long observationGeneration) {
-        if (!owns(observationGeneration) || state.phase != Phase.QUEUE) return NO_OBSERVATION;
+        if (!owns(observationGeneration)
+            || state.phase != Phase.CONNECTING && state.phase != Phase.QUEUE) return NO_OBSERVATION;
         var now = clock.instant();
-        var completedDuration = state.queueStartedAt == null ? null : Duration.between(state.queueStartedAt, now);
+        var queueCompleted = state.phase == Phase.QUEUE;
+        var completedDuration = queueCompleted ? queueDurationAt(state.queueStartedAt, now) : state.completedQueueDuration;
         state = new State(
             Phase.MAIN_SERVER,
             null,
@@ -113,7 +116,7 @@ public final class ThreeCThreeUQueueTracker {
             state.totalUpdatedAt,
             state.queueStartedAt,
             completedDuration);
-        return new Observation(false, false, true, true);
+        return new Observation(false, false, true, queueCompleted);
     }
 
     public Snapshot snapshot() {
