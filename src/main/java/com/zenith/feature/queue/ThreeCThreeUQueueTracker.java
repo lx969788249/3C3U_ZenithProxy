@@ -101,6 +101,21 @@ public final class ThreeCThreeUQueueTracker {
         return new Observation(false, false, true, queueCompleted);
     }
 
+    public synchronized Observation observeBackendReconfiguration(final long observationGeneration) {
+        if (!owns(observationGeneration) || state.phase != Phase.QUEUE) return NO_OBSERVATION;
+        var now = clock.instant();
+        var completedDuration = state.queueStartedAt == null ? null : Duration.between(state.queueStartedAt, now);
+        state = new State(
+            Phase.MAIN_SERVER,
+            null,
+            null,
+            state.total,
+            state.totalUpdatedAt,
+            state.queueStartedAt,
+            completedDuration);
+        return new Observation(false, false, true, true);
+    }
+
     public Snapshot snapshot() {
         return snapshot(clock.instant());
     }

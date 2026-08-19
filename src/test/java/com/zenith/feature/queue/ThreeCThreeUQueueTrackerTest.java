@@ -271,6 +271,23 @@ class ThreeCThreeUQueueTrackerTest {
     }
 
     @Test
+    void backendReconfigurationAfterQueueMarksMainServerReached() {
+        var clock = new MutableClock(NOW);
+        var tracker = new ThreeCThreeUQueueTracker(clock);
+        var generation = tracker.beginConnect();
+        tracker.observeActionbar(generation, "正在排队 位置：172");
+        clock.advance(Duration.ofSeconds(10));
+
+        var observation = tracker.observeBackendReconfiguration(generation);
+
+        assertTrue(observation.mainServerReached());
+        assertTrue(observation.queueCompleted());
+        assertFalse(observation.queueStarted());
+        assertEquals(ThreeCThreeUQueueTracker.Phase.MAIN_SERVER, tracker.snapshot().phase());
+        assertEquals(Duration.ofSeconds(10), tracker.queueDuration());
+    }
+
+    @Test
     void requeueFromMainStartsANewQueueAndFreezesCompletedWait() {
         var clock = new MutableClock(NOW);
         var tracker = new ThreeCThreeUQueueTracker(clock);
